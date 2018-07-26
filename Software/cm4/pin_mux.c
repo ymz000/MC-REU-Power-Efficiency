@@ -133,6 +133,7 @@ void BOARD_InitPins_Core0(void)
     IOCON_PinMuxSet(IOCON, 0, 29, port1_pin0_config);
     IOCON_PinMuxSet(IOCON, 0, 30, port1_pin0_config);
     IOCON_PinMuxSet(IOCON, 0, 31, port1_pin0_config);
+    IOCON_PinMuxSet(IOCON, 1, 4, port1_pin0_config); 
 }
 /***********************************************************************************************************************
  * EOF

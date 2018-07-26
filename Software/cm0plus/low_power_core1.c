@@ -54,7 +54,8 @@
 #define QUEUE_ELEMENT_COUNT 200
 
 #define DEMO_ADC_BASE ADC0
-#define DEMO_ADC_SAMPLE_CHANNEL_NUMBER 1U
+#define DEMO_ADC_CURRENT_CHANNEL_NUMBER 1U
+#define DEMO_ADC_VOLTAGE_CHANNEL_NUMBER 7U
 #define DEMO_ADC_IRQ_ID ADC0_SEQA_IRQn
 #define DEMO_ADC_IRQ_HANDLER_FUNC ADC0_SEQA_IRQHandler
 
@@ -98,12 +99,6 @@ void MAILBOX_IRQHandler()
  */
 void DEMO_ADC_IRQ_HANDLER_FUNC(void)
 {
-    if (kADC_ConvSeqAInterruptFlag == (kADC_ConvSeqAInterruptFlag & ADC_GetStatusFlags(DEMO_ADC_BASE)))
-    {
-        ADC_GetChannelConversionResult(DEMO_ADC_BASE, DEMO_ADC_SAMPLE_CHANNEL_NUMBER, gAdcResultInfoPtr);
-        ADC_ClearStatusFlags(DEMO_ADC_BASE, kADC_ConvSeqAInterruptFlag);
-        gAdcConvSeqAIntFlag = true;
-    }
     /* Add for ARM errata 838869, affects Cortex-M4, Cortex-M4F Store immediate overlapping
       exception return operation might vector to incorrect interrupt */
 #if defined __CORTEX_M && (__CORTEX_M == 4U)
@@ -120,7 +115,7 @@ static void ADC_ClockPower_Configuration(void)
     /* Enable the clock. */
     CLOCK_AttachClk(kSYS_PLL_OUT_to_MAIN_CLK);
 
-    /* CLOCK_AttachClk(kMAIN_CLK_to_ADC_CLK); */
+    CLOCK_AttachClk(kMAIN_CLK_to_ADC_CLK); 
     /* Sync clock source is not used. Using sync clock source and would be divided by 2.
      * The divider would be set when configuring the converter.
      */
@@ -161,8 +156,8 @@ void ADC_Configuration(void)
 #endif /* FSL_FEATURE_ADC_HAS_NO_INSEL. */
 
     /* Enable channel DEMO_ADC_SAMPLE_CHANNEL_NUMBER's conversion in Sequence A. */
-    adcConvSeqConfigStruct.channelMask =
-        (1U << DEMO_ADC_SAMPLE_CHANNEL_NUMBER); /* Includes channel DEMO_ADC_SAMPLE_CHANNEL_NUMBER. */
+    adcConvSeqConfigStruct.channelMask = 
+        (1U << DEMO_ADC_CURRENT_CHANNEL_NUMBER) | (1U << DEMO_ADC_VOLTAGE_CHANNEL_NUMBER); /* Includes channel DEMO_ADC_SAMPLE_CHANNEL_NUMBER. */
     adcConvSeqConfigStruct.triggerMask = 0U;
     adcConvSeqConfigStruct.triggerPolarity = kADC_TriggerPolarityPositiveEdge;
     adcConvSeqConfigStruct.enableSingleStep = false;
@@ -172,7 +167,10 @@ void ADC_Configuration(void)
     ADC_EnableConvSeqA(DEMO_ADC_BASE, true); /* Enable the conversion sequence A. */
     /* Clear the result register. */
     ADC_DoSoftwareTriggerConvSeqA(DEMO_ADC_BASE);
-    while (!ADC_GetChannelConversionResult(DEMO_ADC_BASE, DEMO_ADC_SAMPLE_CHANNEL_NUMBER, &gAdcResultInfoStruct))
+    while (!ADC_GetChannelConversionResult(DEMO_ADC_BASE, DEMO_ADC_CURRENT_CHANNEL_NUMBER, &gAdcResultInfoStruct))
+    {
+    }
+    while (!ADC_GetChannelConversionResult(DEMO_ADC_BASE, DEMO_ADC_VOLTAGE_CHANNEL_NUMBER, &gAdcResultInfoStruct))
     {
     }
     ADC_GetConvSeqAGlobalConversionResult(DEMO_ADC_BASE, &gAdcResultInfoStruct);
@@ -212,6 +210,7 @@ int main(void)
     uint32_t samp_since = 0;
     uint32_t adc_dat;
     uint32_t adc_samp_sum = 0;
+    uint32_t adc_volt_sum = 0;
 
     ADC_EnableConvSeqABurstMode(DEMO_ADC_BASE, true);
     
@@ -220,18 +219,26 @@ int main(void)
         //ADC_DoSoftwareTriggerConvSeqA(DEMO_ADC_BASE);
 
         do{
-            adc_dat = DEMO_ADC_BASE->DAT[DEMO_ADC_SAMPLE_CHANNEL_NUMBER];
+            adc_dat = DEMO_ADC_BASE->DAT[DEMO_ADC_CURRENT_CHANNEL_NUMBER];
         }
         while (0U == (ADC_DAT_DATAVALID_MASK & adc_dat));
-        
         adc_samp_sum += (adc_dat & ADC_DAT_RESULT_MASK) >> ADC_DAT_RESULT_SHIFT;
+        
+        do{
+            adc_dat = DEMO_ADC_BASE->DAT[DEMO_ADC_VOLTAGE_CHANNEL_NUMBER];
+        }
+        while (0U == (ADC_DAT_DATAVALID_MASK & adc_dat));
+        adc_volt_sum += (adc_dat & ADC_DAT_RESULT_MASK) >> ADC_DAT_RESULT_SHIFT;
+        
         samp_since ++;
 
         if (samp_since > QUEUE_ELEMENT_COUNT_TRIG)
         {
             MAILBOX_SetValue(MAILBOX, kMAILBOX_CM4, kProcessData);
             g_queue_buffer[0] = adc_samp_sum;
+            g_queue_buffer[1] = adc_volt_sum;
             adc_samp_sum = 0;
+            adc_volt_sum = 0;
             samp_since = 0;
         }
     }

@@ -81,7 +81,7 @@ extern int m0_image_size;
 #define CORE1_IMAGE_SIZE ((void *)m0_image_size)
 #endif
 
-#define QUEUE_ELEMENT_COUNT_TRIG 524288
+#define QUEUE_ELEMENT_COUNT_TRIG 160000
 #define UTICK_TIME 10000
 #define CORE_CLK_FREQ (CLOCK_GetFreq(kCLOCK_MainClk)/4)
 /*******************************************************************************
@@ -167,9 +167,18 @@ void utick_cb()
 void processData()
 {
     uint32_t total = g_dataBuff[0];
-    float avg = (float)total / (float)QUEUE_ELEMENT_COUNT_TRIG;
-    avg = avg /4096 * 3000 / 2500;
-    PRINTF("Raw: %d, Average: %.4f A\r\n", total, avg);
+    uint32_t volt = g_dataBuff[1];
+    char str[41];
+    //float avg = (float)total / (float)QUEUE_ELEMENT_COUNT_TRIG;
+    //avg = avg /4096 * 3000 / 2500;
+    memset(str, 0, 41);
+    sprintf(str, "A: %d V: %d", total, volt);
+    printf("AT+CIPSEND=0,40\r\n");
+    timeDelay(50);
+    for (uint32_t i = 0; i < 40; i++) {
+        PUTCHAR(str[i]);
+    }
+    printf("\r\n");
 }
 
 void MAILBOX_IRQHandler()
@@ -215,7 +224,7 @@ int main(void)
     /* TURN OFF FLASH Clock (only needed for FLASH programming, will be turned on by ROM API) */
     CLOCK_DisableClock(kCLOCK_Flash);
 
-    PRINTF("CORE0 is running\r\n");
+    //PRINTF("CORE0 is running\r\n");
 
     /* Minimize power consumption by switching several pins to analog mode */
     //APP_DISABLE_PINS;
@@ -238,13 +247,22 @@ int main(void)
     /* Calculate size of the image */
     uint32_t core1_image_size;
     core1_image_size = get_core1_image_size();
-    PRINTF("Copy CORE1 image to address: 0x%x, size: %d\r\n", CORE1_BOOT_ADDRESS, core1_image_size);
+    //PRINTF("Copy CORE1 image to address: 0x%x, size: %d\r\n", CORE1_BOOT_ADDRESS, core1_image_size);
 
     /* Copy application from FLASH to RAM */
     memcpy(CORE1_BOOT_ADDRESS, (void *)CORE1_IMAGE_START, core1_image_size);
 #endif
 
-    PRINTF("Starting CORE1\r\n");
+    //PRINTF("Starting CORE1\r\n");
+    
+    timeDelay(1000);
+    
+    PRINTF("AT+CWMODE=2\r\n");
+    timeDelay(100);
+    PRINTF("AT+CIPMUX=1\r\n");
+    timeDelay(100);
+    PRINTF("AT+CIPSERVER=1,8080\r\n");
+    timeDelay(100);
 
     RESET_SlaveCoreReset(*(uint32_t*)(((uint8_t*)(CORE1_BOOT_ADDRESS))+4), *(uint32_t*)(CORE1_BOOT_ADDRESS));
 
@@ -253,8 +271,8 @@ int main(void)
     {
     }
 
-    PRINTF("CORE1 is running.\r\n");
-
+    //PRINTF("CORE1 is running.\r\n");
+    
     while (1)
     {
         while(!g_readyToProcess);

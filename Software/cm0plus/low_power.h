@@ -43,19 +43,9 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
-#define QUEUE_ELEMENT_COUNT_TRIG 524288
-
-typedef struct
-{
-    int32_t temp;
-    uint32_t press;
-
-    struct bmm050_mag_s32_data_t mag;
-    struct bma2x2_accel_data_temp accel;
-    struct bmi160_gyro_t gyro;
-
-} sensor_data_t;
-
+//#define QUEUE_ELEMENT_COUNT_TRIG 131072
+#define QUEUE_ELEMENT_COUNT_TRIG 160000
+     
 typedef enum
 {
     kGoToDeepSleep = 1,
